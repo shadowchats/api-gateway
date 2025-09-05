@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "dgSpecHash": "ntX4smYUZBQ=",
+  "success": true,
+  "projectFilePath": "D:\\Development\\Projects\\github.com\\0ne290\\Shadowchats.ApiGateway\\Shadowchats.ApiGateway.Presentation\\Shadowchats.ApiGateway.Presentation.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\lenya\\.nuget\\packages\\fractions\\7.3.0\\fractions.7.3.0.nupkg.sha512",
+    "C:\\Users\\lenya\\.nuget\\packages\\kubernetesclient\\17.0.14\\kubernetesclient.17.0.14.nupkg.sha512",
+    "C:\\Users\\lenya\\.nuget\\packages\\newtonsoft.json\\13.0.3\\newtonsoft.json.13.0.3.nupkg.sha512",
+    "C:\\Users\\lenya\\.nuget\\packages\\system.io.hashing\\8.0.0\\system.io.hashing.8.0.0.nupkg.sha512",
+    "C:\\Users\\lenya\\.nuget\\packages\\yamldotnet\\16.3.0\\yamldotnet.16.3.0.nupkg.sha512",
+    "C:\\Users\\lenya\\.nuget\\packages\\yarp.reverseproxy\\2.3.0\\yarp.reverseproxy.2.3.0.nupkg.sha512"
+  ],
+  "logs": []
+}

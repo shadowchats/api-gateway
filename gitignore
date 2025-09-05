@@ -1,0 +1,13 @@
+﻿**/bin/
+**/obj/
+
+
+.idea/
+
+Shadowchats.ApiGateway.sln.DotSettings.user
+
+
+Shadowchats.ApiGateway.Presentation/Properties
+
+*.json
+*.pfx
