@@ -10,4 +10,13 @@ public static class ConfigurationExtensions
 
         return value;
     }
+    
+    public static T GetRequired<T>(this IConfiguration configuration, string key)
+    {
+        var value = configuration.GetSection(key).Get<T>();
+        if (value == null)
+            throw new BugException($"Configuration value '{key}' is required but was not found.");
+
+        return value;
+    }
 }

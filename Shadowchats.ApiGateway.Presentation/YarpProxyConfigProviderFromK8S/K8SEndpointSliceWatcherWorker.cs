@@ -4,38 +4,43 @@ using k8s.Models;
 
 namespace Shadowchats.ApiGateway.Presentation.YarpProxyConfigProviderFromK8S;
 
-public class K8SEndpointSliceWatcher
+public class K8SEndpointSliceWatcherWorker : IK8SEndpointSliceWatcherWorker
 {
-    public K8SEndpointSliceWatcher(IKubernetes apiClient, ILogger<K8SEndpointSliceWatcher> logger, string @namespace, IEnumerable<string> serviceNames)
+    public K8SEndpointSliceWatcherWorker(IKubernetes apiClient, ILogger<K8SEndpointSliceWatcherWorker> logger,
+        string @namespace, IEnumerable<string> serviceNames)
     {
+        _serviceStates = new ConcurrentDictionary<string, K8SServiceState>();
+        ServiceStates = _serviceStates.AsReadOnly();
+        
         _apiClient = apiClient;
         _logger = logger;
         _namespace = @namespace;
+        _serviceNames = serviceNames.ToList();
 
-        foreach (var serviceName in serviceNames)
-            ServiceStates[serviceName] = new K8SServiceState(serviceName);
+        foreach (var serviceName in _serviceNames)
+            _serviceStates[serviceName] = new K8SServiceState(serviceName);
     }
 
-    public void StartWatching()
+    public async Task Start(CancellationToken cancellationToken)
     {
-        foreach (var serviceName in ServiceStates.Keys)
-            _ = Task.Run(() => WatchWithRetry(serviceName, _cancellationTokenSource.Token));
+        var tasks = _serviceNames.Select(sn => WatchWithRetry(sn, cancellationToken));
+        await Task.WhenAll(tasks);
     }
 
-    private async Task WatchWithRetry(string serviceName, CancellationToken cancellationToken)
+    private async Task WatchWithRetry(string serviceName, CancellationToken token)
     {
-        while (!cancellationToken.IsCancellationRequested)
+        while (!token.IsCancellationRequested)
         {
             try
             {
-                await Watch(serviceName, cancellationToken);
+                await Watch(serviceName, token);
             }
-            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+            catch (Exception ex) when (!token.IsCancellationRequested)
             {
                 _logger.LogWarning(ex, "Watch failed for {ServiceName}, retrying in 5s", serviceName);
                 try
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+                    await Task.Delay(TimeSpan.FromSeconds(5), token);
                 }
                 catch (TaskCanceledException)
                 {
@@ -61,19 +66,18 @@ public class K8SEndpointSliceWatcher
         using var endpointSliceWatcher = endpointSliceList.Watch<V1EndpointSlice, V1EndpointSliceList>(
             onEvent: (watchEventType, endpointSlice) =>
             {
-                if (endpointSlice?.Metadata?.Name == null) return;
-
-                var state = ServiceStates[serviceName];
+                if (endpointSlice?.Metadata?.Name == null)
+                    return;
 
                 switch (watchEventType)
                 {
                     case WatchEventType.Added:
                     case WatchEventType.Modified:
-                        state.EndpointSliceStates[endpointSlice.Metadata.Name] =
+                        _serviceStates[serviceName].EndpointSliceStates[endpointSlice.Metadata.Name] =
                             new K8SEndpointSliceState(ExtractBackendsFromEndpointSlice(endpointSlice));
                         break;
                     case WatchEventType.Deleted:
-                        state.EndpointSliceStates.TryRemove(endpointSlice.Metadata.Name, out _);
+                        _serviceStates[serviceName].EndpointSliceStates.TryRemove(endpointSlice.Metadata.Name, out _);
                         break;
                     case WatchEventType.Error:
                     case WatchEventType.Bookmark:
@@ -125,18 +129,12 @@ public class K8SEndpointSliceWatcher
         return backendAddresses;
     }
 
-    public void Dispose()
-    {
-        _cancellationTokenSource.Cancel();
-        _cancellationTokenSource.Dispose();
-        _apiClient.Dispose();
-    }
-
-    public ConcurrentDictionary<string, K8SServiceState> ServiceStates { get; } = new();
+    public IReadOnlyDictionary<string, K8SServiceState> ServiceStates { get; }
     public event Action? EndpointSlicesUpdated;
     
     private readonly IKubernetes _apiClient;
-    private readonly ILogger<K8SEndpointSliceWatcher> _logger;
+    private readonly ILogger<K8SEndpointSliceWatcherWorker> _logger;
     private readonly string _namespace;
-    private readonly CancellationTokenSource _cancellationTokenSource = new();
+    private readonly IEnumerable<string> _serviceNames;
+    private readonly ConcurrentDictionary<string, K8SServiceState> _serviceStates;
 }

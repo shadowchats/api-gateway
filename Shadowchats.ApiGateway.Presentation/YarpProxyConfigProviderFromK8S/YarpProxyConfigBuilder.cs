@@ -1,50 +1,37 @@
-﻿using System.Collections.Concurrent;
-using System.IO.Hashing;
+﻿using System.IO.Hashing;
 using System.Text;
 using Microsoft.Extensions.Primitives;
 using Yarp.ReverseProxy.Configuration;
 
 namespace Shadowchats.ApiGateway.Presentation.YarpProxyConfigProviderFromK8S;
 
-public class YarpProxyConfigBuilder
+public class YarpProxyConfigBuilder(
+    IK8SEndpointSliceWatcherWorker k8SEndpointSliceWatcherWorker,
+    YarpProxyConfig baseConfigSnapshot)
+    : IYarpProxyConfigBuilder
 {
-    public YarpProxyConfigBuilder(ConcurrentDictionary<string, K8SServiceState> k8SServiceStates)
-    {
-        _k8SServiceStates = k8SServiceStates;
-    }
-
     public YarpProxyConfig Build(CancellationTokenSource changeTokenSource)
     {
-        var routes = new List<RouteConfig>();
-        var clusters = new List<ClusterConfig>();
+        var routes = baseConfigSnapshot.Routes;
 
-        foreach (var k8SServiceState in _k8SServiceStates.Values)
+        var clusters = baseConfigSnapshot.Clusters.Select(cluster =>
         {
-            var clusterId = GenerateId($"kube-{k8SServiceState.Name}");
-            var backends = k8SServiceState.AllBackends;
-
-            routes.Add(new RouteConfig
+            if (k8SEndpointSliceWatcherWorker.ServiceStates.TryGetValue(cluster.ClusterId, out var serviceState))
             {
-                RouteId = GenerateId($"route-{k8SServiceState.Name}"),
-                ClusterId = clusterId,
-                Match = new RouteMatch { Path = $"/{k8SServiceState.Name}/{{**catchall}}" }
-            });
+                return cluster with
+                {
+                    Destinations = serviceState.AllBackends.ToDictionary(
+                        b => GenerateId(b),
+                        b => new DestinationConfig { Address = $"http://{b}" })
+                };
+            }
 
-            clusters.Add(new ClusterConfig
-            {
-                ClusterId = clusterId,
-                LoadBalancingPolicy = "RoundRobin",
-                Destinations = backends.ToDictionary(
-                    b => GenerateId($"dest-{b}"),
-                    b => new DestinationConfig { Address = $"http://{b}" })
-            });
-        }
+            return cluster;
+        }).ToList();
 
         return new YarpProxyConfig(routes, clusters, new CancellationChangeToken(changeTokenSource.Token));
     }
 
     private static string GenerateId(string input) =>
         XxHash64.HashToUInt64(Encoding.UTF8.GetBytes(input)).ToString("X16");
-    
-    private readonly ConcurrentDictionary<string, K8SServiceState> _k8SServiceStates;
 }

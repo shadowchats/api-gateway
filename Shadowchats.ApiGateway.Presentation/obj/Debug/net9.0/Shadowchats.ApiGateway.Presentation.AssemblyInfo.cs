@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Shadowchats.ApiGateway.Presentation")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+54ba7d3ac16f931782d13ebd861e5f1b8dca6203")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+705708b9b00ab6f0f78166b146c2322a54164f7a")]
 [assembly: System.Reflection.AssemblyProductAttribute("Shadowchats.ApiGateway.Presentation")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Shadowchats.ApiGateway.Presentation")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

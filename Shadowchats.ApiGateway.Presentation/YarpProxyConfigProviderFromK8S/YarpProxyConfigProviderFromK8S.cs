@@ -1,22 +1,18 @@
-﻿using k8s;
-using Yarp.ReverseProxy.Configuration;
+﻿using Yarp.ReverseProxy.Configuration;
 
 namespace Shadowchats.ApiGateway.Presentation.YarpProxyConfigProviderFromK8S;
 
 public class YarpProxyConfigProviderFromK8S : IProxyConfigProvider, IDisposable
 {
-    public YarpProxyConfigProviderFromK8S(ILogger<K8SEndpointSliceWatcher> logger,
-        IEnumerable<string> serviceNames,
-        string kubernetesNamespace)
+    public YarpProxyConfigProviderFromK8S(IK8SEndpointSliceWatcherWorker k8SEndpointSliceWatcherWorker, IYarpProxyConfigBuilder builder)
     {
-        _k8SEndpointSliceWatcher = new K8SEndpointSliceWatcher(new Kubernetes(KubernetesClientConfiguration.InClusterConfig()), logger, kubernetesNamespace, serviceNames);
+        _k8SEndpointSliceWatcherWorker = k8SEndpointSliceWatcherWorker;
+        _builder = builder;
+        
         _changeTokenSource = new CancellationTokenSource();
-        _builder = new YarpProxyConfigBuilder(_k8SEndpointSliceWatcher.ServiceStates);
-        
-        _k8SEndpointSliceWatcher.EndpointSlicesUpdated += OnEndpointSlicesUpdated;
+
+        _k8SEndpointSliceWatcherWorker.EndpointSlicesUpdated += OnEndpointSlicesUpdated;
         _current = _builder.Build(_changeTokenSource);
-        
-        _k8SEndpointSliceWatcher.StartWatching();
     }
 
     public IProxyConfig GetConfig()
@@ -27,8 +23,7 @@ public class YarpProxyConfigProviderFromK8S : IProxyConfigProvider, IDisposable
 
     public void Dispose()
     {
-        _k8SEndpointSliceWatcher.EndpointSlicesUpdated -= OnEndpointSlicesUpdated;
-        _k8SEndpointSliceWatcher.Dispose();
+        _k8SEndpointSliceWatcherWorker.EndpointSlicesUpdated -= OnEndpointSlicesUpdated;
         _changeTokenSource.Cancel();
         _changeTokenSource.Dispose();
     }
@@ -45,11 +40,11 @@ public class YarpProxyConfigProviderFromK8S : IProxyConfigProvider, IDisposable
         }
     }
 
-    private readonly K8SEndpointSliceWatcher _k8SEndpointSliceWatcher;
+    private readonly IK8SEndpointSliceWatcherWorker _k8SEndpointSliceWatcherWorker;
+    
+    private readonly IYarpProxyConfigBuilder _builder;
     
     private CancellationTokenSource _changeTokenSource;
-
-    private readonly YarpProxyConfigBuilder _builder;
 
     private readonly Lock _locker = new();
     private YarpProxyConfig _current;
