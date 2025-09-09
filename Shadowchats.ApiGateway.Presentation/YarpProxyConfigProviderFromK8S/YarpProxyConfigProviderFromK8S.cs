@@ -10,6 +10,7 @@ public class YarpProxyConfigProviderFromK8S : IProxyConfigProvider, IDisposable
         _builder = builder;
         
         _changeTokenSource = new CancellationTokenSource();
+        _locker = new Lock();
 
         _k8SEndpointSliceWatcherWorker.EndpointSlicesUpdated += OnEndpointSlicesUpdated;
         _current = _builder.Build(_changeTokenSource);
@@ -45,7 +46,8 @@ public class YarpProxyConfigProviderFromK8S : IProxyConfigProvider, IDisposable
     private readonly IYarpProxyConfigBuilder _builder;
     
     private CancellationTokenSource _changeTokenSource;
-
-    private readonly Lock _locker = new();
+    
+    private readonly Lock _locker;
+    
     private YarpProxyConfig _current;
 }

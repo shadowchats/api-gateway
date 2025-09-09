@@ -2,9 +2,14 @@
 
 namespace Shadowchats.ApiGateway.Presentation.YarpProxyConfigProviderFromK8S;
 
-public record K8SServiceState(string Name)
+public record K8SServiceState
 {
-    public ConcurrentDictionary<string, K8SEndpointSliceState> EndpointSliceStates { get; } = new();
+    public K8SServiceState()
+    {
+        EndpointSliceStates = new ConcurrentDictionary<string, K8SEndpointSliceState>();
+    }
+    
+    public ConcurrentDictionary<string, K8SEndpointSliceState> EndpointSliceStates { get; }
         
     public IReadOnlyList<string> AllBackends =>
         EndpointSliceStates.Values

@@ -1,6 +1,6 @@
+using System.IdentityModel.Tokens.Jwt;
 using k8s;
-using Microsoft.Extensions.Primitives;
-using Shadowchats.ApiGateway.Presentation.Extensions;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Shadowchats.ApiGateway.Presentation.YarpProxyConfigProviderFromK8S;
 using Yarp.ReverseProxy.Configuration;
 
@@ -14,37 +14,39 @@ public static class Program
 
         builder.Services.AddReverseProxy();
 
+        builder.Services.AddOptions<K8SConfig>().BindConfiguration("Kubernetes")
+            .ValidateDataAnnotations().ValidateOnStart();
+        builder.Services.AddOptions<BaseYarpProxyConfig>().BindConfiguration("ReverseProxy")
+            .ValidateDataAnnotations().ValidateOnStart();
+        builder.Services.AddOptions<JwtSettings>().BindConfiguration("JwtSettings")
+            .Validate(settings => settings.SecretKeyBytes.Length >= 32).ValidateDataAnnotations().ValidateOnStart();
+
         builder.Services.AddSingleton<IKubernetes>(_ =>
             new Kubernetes(
                 KubernetesClientConfiguration.InClusterConfig()
             )
         );
-        builder.Services.AddSingleton<IK8SEndpointSliceWatcherWorker>(sp =>
-            new K8SEndpointSliceWatcherWorker(
-                sp.GetRequiredService<IKubernetes>(),
-                sp.GetRequiredService<ILogger<K8SEndpointSliceWatcherWorker>>(),
-                builder.Configuration.GetRequiredValue<string>("Kubernetes:Namespace"),
-                builder.Configuration.GetRequiredValue<string[]>("Kubernetes:Services")
-            )
-        );
-        builder.Services.AddSingleton<IYarpProxyConfigBuilder>(sp =>
-            new YarpProxyConfigBuilder(
-                sp.GetRequiredService<IK8SEndpointSliceWatcherWorker>(),
-                new YarpProxyConfig(
-                    builder.Configuration.GetRequired<RouteConfig[]>("ReverseProxy:Routes"),
-                    builder.Configuration.GetRequired<ClusterConfig[]>("ReverseProxy:Clusters"),
-                    new CancellationChangeToken(CancellationToken.None)
-                )
-            )
-        );
+        builder.Services.AddSingleton<IK8SEndpointSliceWatcherWorker, K8SEndpointSliceWatcherWorker>();
+        builder.Services.AddSingleton<IYarpProxyConfigBuilder, YarpProxyConfigBuilder>();
         
         builder.Services.AddHostedService<K8SEndpointSliceWatcherService>();
 
         builder.Services.AddSingleton<IProxyConfigProvider, YarpProxyConfigProviderFromK8S.YarpProxyConfigProviderFromK8S>();
 
+        builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
+        builder.Services.ConfigureOptions<ConfigureJwtBearerOptions>();
+        builder.Services.AddAuthorizationBuilder()
+            .AddPolicy("AccountPolicy", policy =>
+            {
+                policy.RequireAuthenticatedUser();
+                policy.RequireClaim(JwtRegisteredClaimNames.Sub);
+            });
+        
         var app = builder.Build();
 
-        app.MapReverseProxy();
+        app.UseGrpcWeb();
+
+        app.MapReverseProxy(applicationBuilder => applicationBuilder.UseGrpcWeb());
 
         app.Run();
     }

@@ -1,29 +1,29 @@
 ﻿using System.Collections.Concurrent;
 using k8s;
 using k8s.Models;
+using Microsoft.Extensions.Options;
 
 namespace Shadowchats.ApiGateway.Presentation.YarpProxyConfigProviderFromK8S;
 
 public class K8SEndpointSliceWatcherWorker : IK8SEndpointSliceWatcherWorker
 {
     public K8SEndpointSliceWatcherWorker(IKubernetes apiClient, ILogger<K8SEndpointSliceWatcherWorker> logger,
-        string @namespace, IEnumerable<string> serviceNames)
+        IOptions<K8SConfig> config)
     {
         _serviceStates = new ConcurrentDictionary<string, K8SServiceState>();
         ServiceStates = _serviceStates.AsReadOnly();
         
         _apiClient = apiClient;
         _logger = logger;
-        _namespace = @namespace;
-        _serviceNames = serviceNames.ToList();
+        _config = config.Value;
 
-        foreach (var serviceName in _serviceNames)
-            _serviceStates[serviceName] = new K8SServiceState(serviceName);
+        foreach (var serviceName in _config.ServiceNames)
+            _serviceStates[serviceName] = new K8SServiceState();
     }
 
     public async Task Start(CancellationToken cancellationToken)
     {
-        var tasks = _serviceNames.Select(sn => WatchWithRetry(sn, cancellationToken));
+        var tasks = _config.ServiceNames.Select(sn => WatchWithRetry(sn, cancellationToken));
         await Task.WhenAll(tasks);
     }
 
@@ -56,7 +56,7 @@ public class K8SEndpointSliceWatcherWorker : IK8SEndpointSliceWatcherWorker
             .ListNamespacedCustomObjectWithHttpMessagesAsync<V1EndpointSliceList>(
                 group: "discovery.k8s.io",
                 version: "v1",
-                namespaceParameter: _namespace,
+                namespaceParameter: _config.Namespace,
                 plural: "endpointslices",
                 watch: true,
                 labelSelector: $"kubernetes.io/service-name={serviceName}",
@@ -74,7 +74,7 @@ public class K8SEndpointSliceWatcherWorker : IK8SEndpointSliceWatcherWorker
                     case WatchEventType.Added:
                     case WatchEventType.Modified:
                         _serviceStates[serviceName].EndpointSliceStates[endpointSlice.Metadata.Name] =
-                            new K8SEndpointSliceState(ExtractBackendsFromEndpointSlice(endpointSlice));
+                            new K8SEndpointSliceState { Backends = ExtractBackendsFromEndpointSlice(endpointSlice) };
                         break;
                     case WatchEventType.Deleted:
                         _serviceStates[serviceName].EndpointSliceStates.TryRemove(endpointSlice.Metadata.Name, out _);
@@ -134,7 +134,6 @@ public class K8SEndpointSliceWatcherWorker : IK8SEndpointSliceWatcherWorker
     
     private readonly IKubernetes _apiClient;
     private readonly ILogger<K8SEndpointSliceWatcherWorker> _logger;
-    private readonly string _namespace;
-    private readonly IEnumerable<string> _serviceNames;
+    private readonly K8SConfig _config;
     private readonly ConcurrentDictionary<string, K8SServiceState> _serviceStates;
 }

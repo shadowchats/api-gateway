@@ -1,27 +1,32 @@
 ﻿using System.IO.Hashing;
 using System.Text;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
 using Yarp.ReverseProxy.Configuration;
 
 namespace Shadowchats.ApiGateway.Presentation.YarpProxyConfigProviderFromK8S;
 
-public class YarpProxyConfigBuilder(
-    IK8SEndpointSliceWatcherWorker k8SEndpointSliceWatcherWorker,
-    YarpProxyConfig baseConfigSnapshot)
-    : IYarpProxyConfigBuilder
+public class YarpProxyConfigBuilder : IYarpProxyConfigBuilder
 {
+    public YarpProxyConfigBuilder(IK8SEndpointSliceWatcherWorker k8SEndpointSliceWatcherWorker,
+        IOptions<BaseYarpProxyConfig> baseConfigSnapshot)
+    {
+        _k8SEndpointSliceWatcherWorker = k8SEndpointSliceWatcherWorker;
+        _baseConfigSnapshot = baseConfigSnapshot.Value;
+    }
+    
     public YarpProxyConfig Build(CancellationTokenSource changeTokenSource)
     {
-        var routes = baseConfigSnapshot.Routes;
+        var routes = _baseConfigSnapshot.Routes;
 
-        var clusters = baseConfigSnapshot.Clusters.Select(cluster =>
+        var clusters = _baseConfigSnapshot.Clusters.Select(cluster =>
         {
-            if (k8SEndpointSliceWatcherWorker.ServiceStates.TryGetValue(cluster.ClusterId, out var serviceState))
+            if (_k8SEndpointSliceWatcherWorker.ServiceStates.TryGetValue(cluster.ClusterId, out var serviceState))
             {
                 return cluster with
                 {
                     Destinations = serviceState.AllBackends.ToDictionary(
-                        b => GenerateId(b),
+                        GenerateId,
                         b => new DestinationConfig { Address = $"http://{b}" })
                 };
             }
@@ -29,9 +34,16 @@ public class YarpProxyConfigBuilder(
             return cluster;
         }).ToList();
 
-        return new YarpProxyConfig(routes, clusters, new CancellationChangeToken(changeTokenSource.Token));
+        return new YarpProxyConfig
+        {
+            Routes = routes, Clusters = clusters, ChangeToken = new CancellationChangeToken(changeTokenSource.Token)
+        };
     }
 
     private static string GenerateId(string input) =>
         XxHash64.HashToUInt64(Encoding.UTF8.GetBytes(input)).ToString("X16");
+
+    private readonly IK8SEndpointSliceWatcherWorker _k8SEndpointSliceWatcherWorker;
+
+    private readonly BaseYarpProxyConfig _baseConfigSnapshot;
 }
