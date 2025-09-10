@@ -11,4 +11,8 @@ Shadowchats.ApiGateway.sln.DotSettings
 Shadowchats.ApiGateway.Presentation/Properties
 
 *.json
+**/*.json
+!*example.json
+!**/*example.json
 *.pfx
+**/*.pfx
