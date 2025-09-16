@@ -28,5 +28,5 @@ We chose AGPL v3 to ensure that Shadowchats remains free and open source forever
 
 For questions about licensing or to request source code:
 - Email: lenya.dorovskoy@mail.ru
-- GitHub repository: https://github.com/0ne290/Shadowchats.Authentication
+- GitHub repository: https://github.com/0ne290/Shadowchats.ApiGateway
 - Author's GitHub: https://github.com/0ne290
