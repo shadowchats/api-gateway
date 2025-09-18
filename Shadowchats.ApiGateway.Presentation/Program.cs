@@ -9,6 +9,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using k8s;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Shadowchats.ApiGateway.Presentation.YarpProxyConfigProviderFromK8S;
 using Yarp.ReverseProxy.Configuration;
 
@@ -19,6 +20,15 @@ public static class Program
     public static void Main()
     {
         var builder = WebApplication.CreateBuilder();
+        
+        builder.WebHost.UseSetting("AllowedHosts", "*");
+        builder.WebHost.ConfigureKestrel(options =>
+        {
+            options.ListenAnyIP(5000, listenOptions =>
+            {
+                listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
+            });
+        });
 
         builder.Services.AddReverseProxy();
 
