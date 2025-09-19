@@ -6,19 +6,13 @@
 // (at your option) any later version. See the LICENSE file for details.
 // For full copyright and authorship information, see the COPYRIGHT file.
 
-using System.Globalization;
+using Serilog;
+using Serilog.Configuration;
+using Shadowchats.ApiGateway.Presentation.Logging.Enrichers;
 
-namespace Shadowchats.ApiGateway.Presentation;
+namespace Shadowchats.ApiGateway.Presentation.Extensions;
 
-public static class Program
+public static class LoggerEnrichmentConfigurationExtensions
 {
-    public static void Main()
-    {
-        CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
-        CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
-        
-        var app = CustomApplicationBuilder.Build();
-
-        app.Run();
-    }
+    public static LoggerConfiguration WithExceptionDetails(this LoggerEnrichmentConfiguration enrich) => enrich.With<ExceptionDetailsEnricher>();
 }
