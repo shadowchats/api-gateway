@@ -6,6 +6,7 @@
 // (at your option) any later version. See the LICENSE file for details.
 // For full copyright and authorship information, see the COPYRIGHT file.
 
+using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using k8s;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -19,6 +20,9 @@ public static class Program
 {
     public static void Main()
     {
+        CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
+        CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
+        
         var builder = WebApplication.CreateBuilder();
         
         builder.WebHost.UseSetting("AllowedHosts", "*");
