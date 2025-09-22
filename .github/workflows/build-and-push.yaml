@@ -20,10 +20,10 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Read version from file
+      - name: Read NEXT_VERSION
         id: get_version
         run: |
-          VERSION=$(cat VERSION)
+          VERSION=$(cat NEXT_VERSION)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "service=$(basename $GITHUB_REPOSITORY)" >> $GITHUB_OUTPUT
 
@@ -40,7 +40,7 @@ jobs:
         run: |
           IMAGE="one290/shadowchats:${{ steps.get_version.outputs.service }}-v${{ steps.get_version.outputs.version }}"
           echo "Building image $IMAGE"
-          docker build -t $IMAGE ./ 
+          docker build -t $IMAGE ./
 
       - name: Push Docker image
         run: |
@@ -48,12 +48,13 @@ jobs:
           echo "Pushing image $IMAGE"
           docker push $IMAGE
 
-      - name: Increment version
+      - name: Update CURRENT_VERSION and bump NEXT_VERSION
         run: |
-          OLD_VERSION=$(cat VERSION)
-          IFS='.' read -r MAJ MIN PATCH <<< "$OLD_VERSION"
+          SERVICE="${{ steps.get_version.outputs.service }}"
+          OLD_VERSION=$(cat NEXT_VERSION)
+          echo "$OLD_VERSION" > CURRENT_VERSION
 
-          # Обязательный input level, берем напрямую
+          IFS='.' read -r MAJ MIN PATCH <<< "$OLD_VERSION"
           LEVEL="${{ github.event.inputs.level }}"
 
           case "$LEVEL" in
@@ -69,17 +70,13 @@ jobs:
             patch)
               PATCH=$((PATCH+1))
               ;;
-            *)
-              echo "Unknown level '$LEVEL', exiting"
-              exit 1
-              ;;
           esac
 
           NEW_VERSION="$MAJ.$MIN.$PATCH"
-          echo "$NEW_VERSION" > VERSION
+          echo "$NEW_VERSION" > NEXT_VERSION
 
           git config --local user.email "ci@example.com"
           git config --local user.name "CI Bot"
-          git add VERSION
-          git commit -m "Bump version to $NEW_VERSION"
+          git add CURRENT_VERSION NEXT_VERSION
+          git commit -m "Release $OLD_VERSION, bump to $NEW_VERSION"
           git push
