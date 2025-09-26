@@ -1,6 +1,3 @@
-# Внизу после разделительного комментария есть вторая версия этого конвейера. Выполни сперва вторую версию
-# и, если она рабочая, первую.
-
 name: Build & Push Docker Image
 
 on:
@@ -23,14 +20,29 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # чтобы можно было пушить коммиты
+          fetch-depth: 0   # нужен полный history для пуша коммитов
 
-      - name: Read NEXT_VERSION
+      - name: Read current VERSION
         id: get_version
         run: |
-          VERSION=$(cat NEXT_VERSION)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          CURRENT_VERSION=$(cat VERSION)
+          echo "current=$CURRENT_VERSION" >> $GITHUB_OUTPUT
           echo "service=$(basename $GITHUB_REPOSITORY)" >> $GITHUB_OUTPUT
+
+      - name: Calculate new VERSION
+        id: bump_version
+        run: |
+          IFS='.' read -r MAJ MIN PATCH <<< "${{ steps.get_version.outputs.current }}"
+          LEVEL="${{ github.event.inputs.level }}"
+
+          case "$LEVEL" in
+            major) MAJ=$((MAJ+1)); MIN=0; PATCH=0 ;;
+            minor) MIN=$((MIN+1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH+1)) ;;
+          esac
+
+          NEW_VERSION="$MAJ.$MIN.$PATCH"
+          echo "new=$NEW_VERSION" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -43,120 +55,19 @@ jobs:
 
       - name: Build & Push Docker image (multi-arch)
         run: |
-          IMAGE="one290/shadowchats:${{ steps.get_version.outputs.service }}-v${{ steps.get_version.outputs.version }}"
+          IMAGE="one290/shadowchats:${{ steps.get_version.outputs.service }}-v${{ steps.bump_version.outputs.new }}"
           echo "Building and pushing image $IMAGE"
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
             -t $IMAGE \
             --push .
 
-      - name: Update CURRENT_VERSION and bump NEXT_VERSION
+      - name: Update VERSION file
         run: |
-          SERVICE="${{ steps.get_version.outputs.service }}"
-          OLD_VERSION=$(cat NEXT_VERSION)
-          echo "$OLD_VERSION" > CURRENT_VERSION
-
-          IFS='.' read -r MAJ MIN PATCH <<< "$OLD_VERSION"
-          LEVEL="${{ github.event.inputs.level }}"
-
-          case "$LEVEL" in
-            major) MAJ=$((MAJ+1)); MIN=0; PATCH=0 ;;
-            minor) MIN=$((MIN+1)); PATCH=0 ;;
-            patch) PATCH=$((PATCH+1)) ;;
-          esac
-
-          NEW_VERSION="$MAJ.$MIN.$PATCH"
-          echo "$NEW_VERSION" > NEXT_VERSION
+          echo "${{ steps.bump_version.outputs.new }}" > VERSION
 
           git config --local user.email "ci@example.com"
           git config --local user.name "CI Bot"
-          git add CURRENT_VERSION NEXT_VERSION
-          git commit -m "Release $OLD_VERSION, bump to $NEW_VERSION"
-
-          # пушим только коммит без тегов
+          git add VERSION
+          git commit -m "Release ${{ steps.bump_version.outputs.new }}"
           git push https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git HEAD:main
-
-# -----------------------------------------------------------------------------------
-
-name: Build & Push Docker Image
-
-on:
-  workflow_dispatch:
-    inputs:
-      level:
-        description: 'Which version to bump (major/minor/patch)'
-        required: true
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
-
-jobs:
-  build-and-push:
-    runs-on: [self-hosted, Linux, X64, local-minikube]
-
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Read NEXT_VERSION
-        id: get_version
-        run: |
-          VERSION=$(cat NEXT_VERSION)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "service=$(basename $GITHUB_REPOSITORY)" >> $GITHUB_OUTPUT
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to DockerHub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}
-
-      - name: Build Docker image
-        run: |
-          IMAGE="one290/shadowchats:${{ steps.get_version.outputs.service }}-v${{ steps.get_version.outputs.version }}"
-          echo "Building image $IMAGE"
-          docker build -t $IMAGE ./
-
-      - name: Push Docker image
-        run: |
-          IMAGE="one290/shadowchats:${{ steps.get_version.outputs.service }}-v${{ steps.get_version.outputs.version }}"
-          echo "Pushing image $IMAGE"
-          docker push $IMAGE
-
-      - name: Update CURRENT_VERSION and bump NEXT_VERSION
-        run: |
-          SERVICE="${{ steps.get_version.outputs.service }}"
-          OLD_VERSION=$(cat NEXT_VERSION)
-          echo "$OLD_VERSION" > CURRENT_VERSION
-
-          IFS='.' read -r MAJ MIN PATCH <<< "$OLD_VERSION"
-          LEVEL="${{ github.event.inputs.level }}"
-
-          case "$LEVEL" in
-            major)
-              MAJ=$((MAJ+1))
-              MIN=0
-              PATCH=0
-              ;;
-            minor)
-              MIN=$((MIN+1))
-              PATCH=0
-              ;;
-            patch)
-              PATCH=$((PATCH+1))
-              ;;
-          esac
-
-          NEW_VERSION="$MAJ.$MIN.$PATCH"
-          echo "$NEW_VERSION" > NEXT_VERSION
-
-          git config --local user.email "ci@example.com"
-          git config --local user.name "CI Bot"
-          git add CURRENT_VERSION NEXT_VERSION
-          git commit -m "Release $OLD_VERSION, bump to $NEW_VERSION"
-          git push
