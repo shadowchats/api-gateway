@@ -7,6 +7,7 @@
 // For full copyright and authorship information, see the COPYRIGHT file.
 
 using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Serilog;
 using Shadowchats.ApiGateway.Presentation.Extensions;
 
@@ -31,7 +32,12 @@ public static class CustomApplicationBuilder
 
         builder.Services.Compose();
         
+        builder.Services.AddHealthChecks().AddCheck("self", () => HealthCheckResult.Healthy());
+        
         var app = builder.Build();
+        
+        app.MapHealthChecks("/health");
+        app.MapHealthChecks("/ready");
 
         var lifetime = app.Services.GetRequiredService<IHostApplicationLifetime>();
         lifetime.ApplicationStopped.Register(Log.CloseAndFlush);
