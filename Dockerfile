@@ -12,12 +12,18 @@
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
-COPY Shadowchats.ApiGateway.Presentation/Shadowchats.ApiGateway.Presentation.csproj ./Presentation/
-RUN dotnet restore ./Presentation/Shadowchats.ApiGateway.Presentation.csproj
+# Копируем файл решения и файлы проектов
+COPY Shadowchats.ApiGateway.sln ./
+COPY Shadowchats.ApiGateway.Presentation/Shadowchats.ApiGateway.Presentation.csproj ./Shadowchats.ApiGateway.Presentation/
 
-COPY Shadowchats.ApiGateway.Presentation ./Presentation
+# Восстановление зависимостей по solution
+RUN dotnet restore Shadowchats.ApiGateway.sln
 
-RUN dotnet publish ./Presentation/Shadowchats.ApiGateway.Presentation.csproj -c Release -o /app/publish
+# Копируем всё остальное
+COPY . .
+
+# Публикация конкретного проекта
+RUN dotnet publish Shadowchats.ApiGateway.Presentation/Shadowchats.ApiGateway.Presentation.csproj -c Release -o /app/publish
 
 # -----------------------------
 # Stage 2: Runtime
