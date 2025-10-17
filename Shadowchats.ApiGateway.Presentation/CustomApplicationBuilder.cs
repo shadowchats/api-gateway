@@ -6,6 +6,7 @@
 // (at your option) any later version. See the LICENSE file for details.
 // For full copyright and authorship information, see the COPYRIGHT file.
 
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Serilog;
@@ -32,12 +33,20 @@ public static class CustomApplicationBuilder
 
         builder.Services.Compose();
         
-        builder.Services.AddHealthChecks().AddCheck("self", () => HealthCheckResult.Healthy());
+        builder.Services.AddHealthChecks()
+            .AddCheck("health", () => HealthCheckResult.Healthy())
+            .AddCheck<ReadyHealthCheck>("ready");
         
         var app = builder.Build();
         
-        app.MapHealthChecks("/health");
-        app.MapHealthChecks("/ready");
+        app.MapHealthChecks("/health", new HealthCheckOptions
+        {
+            Predicate = check => check.Name == "health"
+        });
+        app.MapHealthChecks("/ready", new HealthCheckOptions
+        {
+            Predicate = check => check.Name == "ready"
+        });
 
         var lifetime = app.Services.GetRequiredService<IHostApplicationLifetime>();
         lifetime.ApplicationStopped.Register(Log.CloseAndFlush);
