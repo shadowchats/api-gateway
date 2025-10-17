@@ -21,8 +21,7 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection Compose(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddReverseProxy()
-            .LoadFromConfig(configuration.GetSection("ReverseProxy"));
+        services.AddReverseProxy();
 
         services.AddOptions<K8SConfig>().BindConfiguration("Kubernetes")
             .ValidateDataAnnotations().ValidateOnStart();
