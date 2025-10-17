@@ -19,7 +19,7 @@ namespace Shadowchats.ApiGateway.Presentation.Extensions;
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection Compose(this IServiceCollection services)
+    public static IServiceCollection Compose(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddReverseProxy()
             .LoadFromConfig(configuration.GetSection("ReverseProxy"));

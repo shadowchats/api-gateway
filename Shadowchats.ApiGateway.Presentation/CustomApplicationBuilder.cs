@@ -31,7 +31,7 @@ public static class CustomApplicationBuilder
         
         builder.Host.UseSerilog();
 
-        builder.Services.Compose();
+        builder.Services.Compose(builder.Configuration);
         
         builder.Services.AddHealthChecks()
             .AddCheck("health", () => HealthCheckResult.Healthy())
