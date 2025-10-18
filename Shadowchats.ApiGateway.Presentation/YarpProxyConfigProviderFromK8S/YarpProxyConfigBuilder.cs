@@ -17,35 +17,58 @@ namespace Shadowchats.ApiGateway.Presentation.YarpProxyConfigProviderFromK8S;
 public class YarpProxyConfigBuilder : IYarpProxyConfigBuilder
 {
     public YarpProxyConfigBuilder(IK8SEndpointSliceWatcherWorker k8SEndpointSliceWatcherWorker,
-        IOptions<BaseYarpProxyConfig> baseConfigSnapshot)
+        IOptions<BaseYarpProxyConfig> baseConfigSnapshot, ILogger<YarpProxyConfigBuilder> logger)
     {
         _k8SEndpointSliceWatcherWorker = k8SEndpointSliceWatcherWorker;
+        _logger = logger;
         _baseConfigSnapshot = baseConfigSnapshot.Value;
     }
     
     public YarpProxyConfig Build(CancellationTokenSource changeTokenSource)
     {
+        _logger.LogInformation("[DEBUG_LABEL] YarpProxyConfigBuilder.Build() START");
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+    
         var routes = _baseConfigSnapshot.Routes;
+        _logger.LogInformation("[DEBUG_LABEL] Using {RouteCount} base routes", routes.Count);
 
         var clusters = _baseConfigSnapshot.Clusters.Select(cluster =>
         {
+            _logger.LogInformation("[DEBUG_LABEL] Processing cluster {ClusterId}...", cluster.ClusterId);
+        
             if (_k8SEndpointSliceWatcherWorker.ServiceStates.TryGetValue(cluster.ClusterId, out var serviceState))
             {
+                var backends = serviceState.AllBackends;
+                _logger.LogInformation("  [DEBUG_LABEL] Found {BackendCount} backends: {Backends}", 
+                    backends.Count, string.Join(", ", backends.Take(5)));
+            
                 return cluster with
                 {
-                    Destinations = serviceState.AllBackends.ToDictionary(
+                    Destinations = backends.ToDictionary(
                         GenerateId,
                         b => new DestinationConfig { Address = $"http://{b}" })
                 };
             }
 
+            _logger.LogWarning("  [DEBUG_LABEL] Service {ClusterId} NOT FOUND in ServiceStates. Available: {ServiceNames}",
+                cluster.ClusterId, 
+                string.Join(", ", _k8SEndpointSliceWatcherWorker.ServiceStates.Keys));
+            
             return cluster;
         }).ToList();
 
-        return new YarpProxyConfig
+        _logger.LogInformation("[DEBUG_LABEL] Creating YarpProxyConfig with {ClusterCount} clusters", clusters.Count);
+        var config = new YarpProxyConfig
         {
-            Routes = routes, Clusters = clusters, ChangeToken = new CancellationChangeToken(changeTokenSource.Token)
+            Routes = routes, 
+            Clusters = clusters, 
+            ChangeToken = new CancellationChangeToken(changeTokenSource.Token)
         };
+    
+        sw.Stop();
+        _logger.LogInformation("[DEBUG_LABEL] YarpProxyConfigBuilder.Build() COMPLETE in {ElapsedMs}ms", sw.ElapsedMilliseconds);
+    
+        return config;
     }
 
     private static string GenerateId(string input) =>
@@ -54,4 +77,6 @@ public class YarpProxyConfigBuilder : IYarpProxyConfigBuilder
     private readonly IK8SEndpointSliceWatcherWorker _k8SEndpointSliceWatcherWorker;
 
     private readonly BaseYarpProxyConfig _baseConfigSnapshot;
+    
+    private readonly ILogger<YarpProxyConfigBuilder> _logger;
 }
