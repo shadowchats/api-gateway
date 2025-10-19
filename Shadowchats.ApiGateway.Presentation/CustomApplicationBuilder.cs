@@ -53,9 +53,7 @@ public static class CustomApplicationBuilder
 
         app.UseSerilogRequestLogging();
 
-        app.UseGrpcWeb();
-
-        app.MapReverseProxy(applicationBuilder => applicationBuilder.UseGrpcWeb());
+        app.MapReverseProxy();
 
         return app;
     }
