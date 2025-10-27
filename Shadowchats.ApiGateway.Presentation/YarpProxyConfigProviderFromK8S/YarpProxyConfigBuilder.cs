@@ -28,10 +28,24 @@ public class YarpProxyConfigBuilder : IYarpProxyConfigBuilder
         var routes = _baseConfigSnapshot.Routes;
         var clusters = _baseConfigSnapshot.Clusters.Select(cluster =>
         {
-            if (!_k8SEndpointSliceWatcherWorker.ServiceStates.TryGetValue(cluster.ClusterId, out var serviceState))
-                return cluster;
+            IReadOnlyList<string> backends;
+            if (cluster.ClusterId.EndsWith("-http1"))
+            {
+                if (!_k8SEndpointSliceWatcherWorker.ServiceStates.TryGetValue(cluster.ClusterId[..^6], out var serviceState))
+                    return cluster;
+                
+                backends = serviceState.AllHttp1Backends;
+            }
+            else if (cluster.ClusterId.EndsWith("-http2"))
+            {
+                if (!_k8SEndpointSliceWatcherWorker.ServiceStates.TryGetValue(cluster.ClusterId[..^6], out var serviceState))
+                    return cluster;
+                
+                backends = serviceState.AllHttp2Backends;
+            }
+            else 
+                throw new BugException("All cluster identifiers must contain the postfix \"-http1\" or \"-http2\".");
             
-            var backends = serviceState.AllBackends;
             return cluster with
             {
                 Destinations = backends.ToDictionary(

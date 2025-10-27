@@ -19,9 +19,20 @@ public record K8SServiceState
     
     public ConcurrentDictionary<string, K8SEndpointSliceState> EndpointSliceStates { get; }
         
-    public IReadOnlyList<string> AllBackends =>
+    public IReadOnlyList<string> AllHttp1Backends =>
         EndpointSliceStates.Values
             .SelectMany(s => s.Backends)
             .Distinct()
+            .Where(b => b.EndsWith(Http1Port))
             .ToList();
+    
+    public IReadOnlyList<string> AllHttp2Backends =>
+        EndpointSliceStates.Values
+            .SelectMany(s => s.Backends)
+            .Distinct()
+            .Where(b => b.EndsWith(Http2Port))
+            .ToList();
+    
+    private const string Http1Port = ":8080";
+    private const string Http2Port = ":8081";
 }
