@@ -23,10 +23,8 @@ public static class CustomApplicationBuilder
         builder.WebHost.UseSetting("AllowedHosts", "*");
         builder.WebHost.ConfigureKestrel(options =>
         {
-            options.ListenAnyIP(5000, listenOptions =>
-            {
-                listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
-            });
+            options.ListenAnyIP(8080, listenOptions => { listenOptions.Protocols = HttpProtocols.Http1; });
+            options.ListenAnyIP(8081, listenOptions => { listenOptions.Protocols = HttpProtocols.Http2; });
         });
         
         builder.Host.UseSerilog();
