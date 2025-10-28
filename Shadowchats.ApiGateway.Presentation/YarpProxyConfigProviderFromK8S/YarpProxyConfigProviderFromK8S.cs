@@ -13,10 +13,11 @@ namespace Shadowchats.ApiGateway.Presentation.YarpProxyConfigProviderFromK8S;
 public class YarpProxyConfigProviderFromK8S : IProxyConfigProvider, IDisposable
 {
     public YarpProxyConfigProviderFromK8S(IK8SEndpointSliceWatcherWorker k8SEndpointSliceWatcherWorker,
-        IYarpProxyConfigBuilder builder)
+        IYarpProxyConfigBuilder builder, ILogger<YarpProxyConfigProviderFromK8S> logger)
     {
         _k8SEndpointSliceWatcherWorker = k8SEndpointSliceWatcherWorker;
         _builder = builder;
+        _logger = logger;
 
         _changeTokenSource = new CancellationTokenSource();
         _locker = new Lock();
@@ -28,7 +29,11 @@ public class YarpProxyConfigProviderFromK8S : IProxyConfigProvider, IDisposable
     public IProxyConfig GetConfig()
     {
         lock (_locker)
+        {
+            _logger.LogInformation("YARP configuration has been updated. New configuration: {@NewConfiguration}.", _current);
+            
             return _current;
+        }
     }
 
     public void Dispose()
@@ -57,6 +62,8 @@ public class YarpProxyConfigProviderFromK8S : IProxyConfigProvider, IDisposable
     private readonly IK8SEndpointSliceWatcherWorker _k8SEndpointSliceWatcherWorker;
 
     private readonly IYarpProxyConfigBuilder _builder;
+    
+    private readonly ILogger<YarpProxyConfigProviderFromK8S> _logger;
 
     private CancellationTokenSource _changeTokenSource;
 
